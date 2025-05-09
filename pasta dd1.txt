@@ -1,0 +1,77 @@
+-- Remoção de tabelas em ordem correta (considerando dependências)
+DROP TABLE  pagamentos cascade;
+DROP TABLE  manutencoes cascade;
+DROP TABLE  locacoes cascade;
+DROP TABLE  veiculos cascade;
+DROP TABLE  clientes cascade;
+
+-- Criação da tabela de clientes
+CREATE TABLE clientes (
+    cliente_id SERIAL PRIMARY KEY,
+    nome VARCHAR(100) NOT NULL,
+    cpf VARCHAR(14) UNIQUE NOT NULL,
+    telefone VARCHAR(15) NOT NULL,
+    email VARCHAR(100) UNIQUE,
+    endereco VARCHAR(200) NOT NULL,
+    data_cadastro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(20) DEFAULT 'ATIVO' CHECK (status IN ('ATIVO', 'INATIVO', 'BLOQUEADO'))
+);
+
+-- Criação da tabela de veículos
+CREATE TABLE veiculos (
+    veiculo_id SERIAL PRIMARY KEY,
+    placa VARCHAR(10) UNIQUE NOT NULL,
+    modelo VARCHAR(50) NOT NULL,
+    marca VARCHAR(50) NOT NULL,
+    ano INTEGER NOT NULL CHECK (ano > 1900 AND ano <= EXTRACT(YEAR FROM CURRENT_DATE) + 1),
+    tipo VARCHAR(10) NOT NULL CHECK (tipo IN ('CARRO', 'MOTO')),
+    cor VARCHAR(30),
+    disponivel BOOLEAN DEFAULT TRUE,
+    valor_diaria DECIMAL(10, 2) NOT NULL CHECK (valor_diaria > 0),
+    quilometragem INTEGER DEFAULT 0,
+    data_cadastro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Criação da tabela de locações
+CREATE TABLE locacoes (
+    locacao_id SERIAL PRIMARY KEY,
+    cliente_id INTEGER NOT NULL REFERENCES clientes(cliente_id),
+    veiculo_id INTEGER NOT NULL REFERENCES veiculos(veiculo_id),
+    data_locacao TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    data_devolucao_prevista DATE NOT NULL,
+    data_devolucao_real DATE,
+    valor_total DECIMAL(10, 2) CHECK (valor_total > 0),
+    status VARCHAR(20) NOT NULL CHECK (status IN ('ATIVA', 'FINALIZADA', 'CANCELADA')),
+    observacoes TEXT,
+    CONSTRAINT check_datas CHECK (data_devolucao_prevista >= DATE(data_locacao)),
+    CONSTRAINT check_devolucao_real CHECK (
+        (data_devolucao_real IS NULL AND status = 'ATIVA') OR
+        (data_devolucao_real IS NOT NULL AND status IN ('FINALIZADA', 'CANCELADA'))
+    )
+);
+
+-- Criação da tabela de pagamentos
+CREATE TABLE pagamentos (
+    pagamento_id SERIAL PRIMARY KEY,
+    locacao_id INTEGER NOT NULL REFERENCES locacoes(locacao_id),
+    forma_pagamento VARCHAR(20) NOT NULL CHECK (forma_pagamento IN ('CRÉDITO', 'DÉBITO', 'PIX', 'DINHEIRO', 'TRANSFERÊNCIA')),
+    valor_pago DECIMAL(10, 2) NOT NULL CHECK (valor_pago > 0),
+    data_pagamento TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(20) DEFAULT 'CONFIRMADO' CHECK (status IN ('CONFIRMADO', 'PENDENTE', 'ESTORNADO')),
+    codigo_transacao VARCHAR(50),
+    observacoes TEXT
+);
+
+-- Criação da tabela de manutenções
+CREATE TABLE manutencoes (
+    manutencao_id SERIAL PRIMARY KEY,
+    veiculo_id INTEGER NOT NULL REFERENCES veiculos(veiculo_id),
+    data_inicio DATE NOT NULL,
+    data_fim DATE,
+    descricao VARCHAR(200) NOT NULL,
+    custo DECIMAL(10, 2) CHECK (custo >= 0),
+    tipo VARCHAR(30) CHECK (tipo IN ('PREVENTIVA', 'CORRETIVA', 'PINTURA', 'FUNILARIA')),
+    responsavel VARCHAR(100),
+    CONSTRAINT check_data_manutencao CHECK (data_fim IS NULL OR data_fim >= data_inicio)
+);
+
